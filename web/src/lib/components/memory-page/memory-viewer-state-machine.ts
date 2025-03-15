@@ -4,6 +4,7 @@ import { and, assign, emit, fromPromise, not, raise, setup } from 'xstate';
 
 type StateMachineContext = {
   isVideo: boolean,
+  galleryAndViewerClosed: boolean,
   currentMemoryAsset: MemoryAsset | undefined;
   videoElement: HTMLVideoElement | undefined;
   photoProgressController: Tween<number> | undefined;
@@ -37,10 +38,12 @@ export const memoryViewerMachine = setup({
     hasNextAsset: ({ context }) => !!(context.currentMemoryAsset && context.currentMemoryAsset.next),
     hasPreviousAsset: ({ context }) => !!(context.currentMemoryAsset && context.currentMemoryAsset.previous),
     hasFinishedPlayback: ({ context }) => context.elapsedMs === context.durationMs,
+    isGalleryAndViewerClosed: ({ context }) => context.galleryAndViewerClosed,
   },
 }).createMachine({
   context: {
     isVideo: false,
+    galleryAndViewerClosed: true,
     currentMemoryAsset: undefined,
     videoElement: undefined,
     photoProgressController: undefined,
@@ -48,16 +51,12 @@ export const memoryViewerMachine = setup({
     elapsedMs: 0,
   },
   on: {
-    GALLERY_VIEWER_TOGGLED: [
-      {
-        guard: ({ event }) => !event.galleryAndViewerClosed,
-        actions: raise({ type: 'PAUSE' }),
-      },
-      {
-        guard: ({ event }) => event.galleryAndViewerClosed,
-        actions: raise({ type: 'PLAY' }),
-      },
-    ],
+    GALLERY_VIEWER_TOGGLED: {
+      actions: [
+        assign(({ event }) => ({ galleryAndViewerClosed: event.galleryAndViewerClosed })),
+        raise(({ event }) => ({ type: event.galleryAndViewerClosed ? 'PLAY' : 'PAUSE' })),
+      ],
+    },
   },
   id: 'memory-viewer',
   initial: 'loading_memories',
@@ -131,6 +130,7 @@ export const memoryViewerMachine = setup({
       },
       states: {
         playing: {
+          guard: 'isGalleryAndViewerClosed',
           invoke: {
             src: 'playAsset',
             input: ({ context }) => context,
@@ -139,12 +139,19 @@ export const memoryViewerMachine = setup({
             PAUSE: {
               target: 'paused',
             },
-            TIMING: {
-              target: 'playing',
-              actions: assign(({ event }) => ({
-                elapsedMs: event.elapsedMs,
-              })),
-            },
+            TIMING: [
+              {
+                guard: 'isGalleryAndViewerClosed',
+                target: 'playing',
+                actions: assign(({ event }) => ({
+                  elapsedMs: event.elapsedMs,
+                })),
+              },
+              {
+                guard: not('isGalleryAndViewerClosed'),
+                target: 'paused',
+              },
+            ],
           },
         },
         paused: {

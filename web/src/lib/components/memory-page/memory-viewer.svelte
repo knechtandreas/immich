@@ -180,11 +180,8 @@
   });
 
   $effect(() => {
-    if (!$isViewing && !galleryInView) {
-      send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed: true });
-    } else {
-      send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed: false });
-    }
+    const galleryAndViewerClosed = !$isViewing && !galleryInView;
+    send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed });
   });
 </script>
 

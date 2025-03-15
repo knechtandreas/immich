@@ -62,18 +62,15 @@
   import { onMount } from 'svelte';
   import { memoryViewerMachine } from '$lib/components/memory-page/memory-viewer-state-machine';
 
-  const { snapshot, send } = useMachine(memoryViewerMachine);
-  let playingCount = 0;
+  const { snapshot, send, actorRef } = useMachine(memoryViewerMachine);
   snapshot.subscribe((data) => {
     const eventString = `${JSON.stringify(data.value)}`;
-    if (playingCount % 100 === 0) {
-      console.log(`STATE MACHINE VALUE: ${eventString}`);
-      console.log(data.context);
-    }
-    if (eventString.includes('playing')) {
-      playingCount++;
-    } else {
-      playingCount = 0;
+    console.log(`STATE MACHINE VALUE: ${eventString}`, data.context);
+  });
+  actorRef.on('navigate_to_asset', () => {
+    const asset = $snapshot.context.currentMemoryAsset?.asset;
+    if (asset) {
+      void goto(asHref(asset));
     }
   });
 
@@ -87,7 +84,6 @@
   let memoryGallery: HTMLElement | undefined = $state();
   let memoryWrapper: HTMLElement | undefined = $state();
   let galleryInView = $state(false);
-  let galleryFirstLoad = $state(true);
   let isSaved = $derived($snapshot.context.currentMemoryAsset?.memory.isSaved);
 
   const { isViewing } = assetViewingStore;
@@ -95,86 +91,9 @@
   const assetInteraction = new AssetInteraction();
   let videoElement: HTMLVideoElement | undefined = $state();
   const asHref = (asset: AssetResponseDto) => `?${QueryParameter.ID}=${asset.id}`;
-  // const handleNavigate = async (asset?: AssetResponseDto) => {
-  //   if ($isViewing) {
-  //     return asset;
-  //   }
-  //
-  //   if (!asset) {
-  //     return;
-  //   }
-  //
-  //   await goto(asHref(asset));
-  // };
-  // const setProgressDuration = (asset: AssetResponseDto) => {
-  //   if (asset.type === AssetTypeEnum.Video) {
-  //     const timeParts = asset.duration.split(':').map(Number);
-  //     const durationInMilliseconds = (timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2]) * 1000;
-  //     progressBarController = new Tween<number>(0, {
-  //       duration: (from: number, to: number) => (to ? durationInMilliseconds * (to - from) : 0),
-  //     });
-  //   } else {
-  //     progressBarController = new Tween<number>(0, {
-  //       duration: (from: number, to: number) => (to ? 5000 * (to - from) : 0),
-  //     });
-  //   }
-  // };
-  // const handleNextAsset = () => handleNavigate($snapshot.context.currentMemoryAsset?.next?.asset);
-  // const handlePreviousAsset = () => handleNavigate($snapshot.context.currentMemoryAsset?.previous?.asset);
-  // const handleNextMemory = () => handleNavigate($snapshot.context.currentMemoryAsset?.nextMemory?.assets[0]);
-  // const handlePreviousMemory = () => handleNavigate($snapshot.context.currentMemoryAsset?.previousMemory?.assets[0]);
   const handleEscape = async () => goto(AppRoute.PHOTOS);
   const handleSelectAll = () =>
     assetInteraction.selectAssets($snapshot.context.currentMemoryAsset?.memory.assets || []);
-
-  // const handleAction = async (callingContext: string, action: 'reset' | 'pause' | 'play') => {
-  //   // leaving these log statements here as comments. Very useful to figure out what's going on during dev!
-  //   // console.log(`handleAction[${callingContext}] called with: ${action}`);
-  //   if (!progressBarController) {
-  //     // console.log(`handleAction[${callingContext}] NOT READY!`);
-  //     return;
-  //   }
-  //
-  //   switch (action) {
-  //     case 'play': {
-  //       try {
-  //         paused = false;
-  //         await videoPlayer?.play();
-  //         await progressBarController.set(1);
-  //       } catch (error) {
-  //         // this may happen if browser blocks auto-play of the video on first page load. This can either be a setting
-  //         // or just defaut in certain browsers on page load without any DOM interaction by user.
-  //         console.error(`handleAction[${callingContext}] videoPlayer play problem: ${error}`);
-  //         paused = true;
-  //         await progressBarController.set(0);
-  //       }
-  //       break;
-  //     }
-  //
-  //     case 'pause': {
-  //       paused = true;
-  //       videoPlayer?.pause();
-  //       await progressBarController.set(progressBarController.current);
-  //       break;
-  //     }
-  //
-  //     case 'reset': {
-  //       paused = false;
-  //       videoPlayer?.pause();
-  //       await progressBarController.set(0);
-  //       break;
-  //     }
-  //   }
-  // };
-  // const handleProgress = async (progress: number) => {
-  //   if (!progressBarController) {
-  //     return;
-  //   }
-  //
-  //   if (progress === 1 && !paused) {
-  //     await ($snapshot.context.currentMemoryAsset?.next ? handleNextAsset() : handlePromiseError(handleAction('handleProgressLast', 'pause')));
-  //   }
-  // };
 
   const toProgressPercentage = (index: number) => {
     if ($snapshot.context.currentMemoryAsset?.assetIndex === undefined || $snapshot.context.durationMs === 0) {
@@ -186,9 +105,16 @@
     if (index > $snapshot.context.currentMemoryAsset?.assetIndex) {
       return 0;
     }
-    return $snapshot.context.elapsedMs / $snapshot.context.durationMs * 100;
+    return ($snapshot.context.elapsedMs / $snapshot.context.durationMs) * 100;
   };
 
+  const navigateToAsset = async (assetId: string | undefined) => {
+    const memoryAsset = memoryStore.getMemoryAsset(assetId);
+    if (memoryAsset) {
+      send({ type: 'NAVIGATE', targetMemoryAsset: memoryAsset });
+      await goto(asHref(memoryAsset.asset));
+    }
+  };
   const handleDeleteOrArchiveAssets = (ids: string[]) => {
     if (!$snapshot.context.currentMemoryAsset) {
       return;
@@ -226,51 +152,11 @@
     });
     // init(page);
   };
-  const handleGalleryScrollsIntoView = () => {
-    galleryInView = true;
-    send({ type: 'PAUSE' });
-  };
-  const handleGalleryScrollsOutOfView = () => {
-    galleryInView = false;
-    // only call play after the first page load. When page first loads the gallery will not be visible
-    // and calling play here will result in duplicate invocation.
-    if (!galleryFirstLoad) {
-      send({ type: 'PLAY' });
-    }
-    galleryFirstLoad = false;
-  };
 
   const loadFromParams = (page: Page | NavigationTarget | null) => {
     const assetId = page?.params?.assetId ?? page?.url.searchParams.get(QueryParameter.ID) ?? undefined;
     return memoryStore.getMemoryAsset(assetId);
   };
-
-  // const init = (target: Page | NavigationTarget | null) => {
-  //   if (memoryStore.memories.length === 0) {
-  //     return handlePromiseError(goto(AppRoute.PHOTOS));
-  //   }
-  //
-  //   $snapshot.context.currentMemoryAsset = loadFromParams(target);
-  //   // Adjust the progress bar duration to the video length
-  //   if ($snapshot.context.currentMemoryAsset) {
-  //     setProgressDuration($snapshot.context.currentMemoryAsset.asset);
-  //   }
-  //   playerInitialized = false;
-  // };
-
-  // const initPlayer = () => {
-  //   const isVideoAssetButPlayerHasNotLoadedYet = $snapshot.context.currentMemoryAsset && $snapshot.context.currentMemoryAsset.asset.type === AssetTypeEnum.Video && !videoPlayer;
-  //   if (playerInitialized || isVideoAssetButPlayerHasNotLoadedYet) {
-  //     return;
-  //   }
-  //   if ($isViewing) {
-  //     handlePromiseError(handleAction('initPlayer[AssetViewOpen]', 'pause'));
-  //   } else {
-  //     handlePromiseError(handleAction('initPlayer[AssetViewClosed]', 'reset'));
-  //     handlePromiseError(handleAction('initPlayer[AssetViewClosed]', 'play'));
-  //   }
-  //   playerInitialized = true;
-  // };
 
   onMount(async () => {
     await memoryStore.initialize();
@@ -293,33 +179,13 @@
     }
   });
 
-  // afterNavigate(({ from, to, type }) => {
-  //   if (type === 'enter') {
-  //     // afterNavigate triggers twice on first page load (once when mounted with 'enter' and then a second time
-  //     // with the actual 'goto' to URL).
-  //     return;
-  //   }
-  //   memoryStore.initialize().then(
-  //     () => {
-  //       let target = null;
-  //       if (to?.params?.assetId) {
-  //         target = to;
-  //       } else if (from?.params?.assetId) {
-  //         target = from;
-  //       } else {
-  //         target = page;
-  //       }
-  //
-  //       init(target);
-  //       initPlayer();
-  //     },
-  //     (error) => {
-  //       console.error(`Error loading memories: ${error}`);
-  //     },
-  //   );
-  // });
-  //
-  //
+  $effect(() => {
+    if (!$isViewing && !galleryInView) {
+      send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed: true });
+    } else {
+      send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed: false });
+    }
+  });
 </script>
 
 <svelte:window
@@ -385,7 +251,15 @@
         />
 
         {#each current.memory.assets as asset, index (asset.id)}
-          <a class="relative w-full py-2" href={asHref(asset)} aria-label={$t('view')}>
+          <a
+            class="relative w-full py-2"
+            href={asHref(asset)}
+            aria-label={$t('view')}
+            onclick={async (e) => {
+              e.preventDefault();
+              await navigateToAsset(asset.id);
+            }}
+          >
             <span class="absolute left-0 h-[2px] w-full bg-gray-500"></span>
             <span class="absolute left-0 h-[2px] bg-white" style:width={`${toProgressPercentage(index)}%`}></span>
           </a>
@@ -430,9 +304,7 @@
             type="button"
             class="relative h-full w-full rounded-2xl"
             disabled={!current.previousMemory}
-            onclick={() => {
-              console.log('TODO');
-            }}
+            onclick={() => navigateToAsset(current.previousMemory?.assets[0]?.id)}
           >
             {#if current.previousMemory && current.previousMemory.assets.length > 0}
               <img
@@ -485,9 +357,9 @@
                     draggable="false"
                     muted={$videoViewerMuted}
                     transition:fade
-                    oncanplay={() => send({ type: 'ASSET_READY',isVideo, videoElement })}
-                    ontimeupdate={() => send({ type: 'TIMING', elapsedMs: (videoElement?.currentTime ?? 0) * 1000})}
-                    onended={() => send({type:'NEXT'})}
+                    oncanplay={() => send({ type: 'ASSET_READY', isVideo, videoElement })}
+                    ontimeupdate={() => send({ type: 'TIMING', elapsedMs: (videoElement?.currentTime ?? 0) * 1000 })}
+                    onended={() => send({ type: 'NEXT' })}
                   ></video>
                 {:else}
                   <img
@@ -602,9 +474,7 @@
           <button
             type="button"
             class="relative h-full w-full rounded-2xl"
-            onclick={() => {
-              console.log('TODO');
-            }}
+            onclick={() => navigateToAsset(current.nextMemory?.assets[0]?.id)}
             disabled={!current.nextMemory}
           >
             {#if current.nextMemory && current.nextMemory.assets.length > 0}
@@ -656,8 +526,8 @@
       <div
         id="gallery-memory"
         use:intersectionObserver={{
-          onIntersect: handleGalleryScrollsIntoView,
-          onSeparate: handleGalleryScrollsOutOfView,
+          onIntersect: () => (galleryInView = true),
+          onSeparate: () => (galleryInView = false),
           bottom: '-200px',
         }}
         use:resizeObserver={({ height, width }) => ((viewport.height = height), (viewport.width = width))}

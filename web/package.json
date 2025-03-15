@@ -76,6 +76,7 @@
     "@photo-sphere-viewer/resolution-plugin": "^5.11.5",
     "@photo-sphere-viewer/settings-plugin": "^5.11.5",
     "@photo-sphere-viewer/video-plugin": "^5.11.5",
+    "@xstate/svelte": "^4.0.3",
     "@zoom-image/svelte": "^0.3.0",
     "dom-to-image": "^2.6.0",
     "fabric": "^6.5.4",
@@ -91,7 +92,8 @@
     "svelte-i18n": "^4.0.1",
     "svelte-local-storage-store": "^0.6.4",
     "svelte-maplibre": "^0.9.13",
-    "thumbhash": "^0.1.1"
+    "thumbhash": "^0.1.1",
+    "xstate": "^5.19.2"
   },
   "volta": {
     "node": "22.14.0"

@@ -59,12 +59,14 @@
   import { Tween } from 'svelte/motion';
   import { fade } from 'svelte/transition';
   import { useMachine } from '@xstate/svelte';
-  import { assign, fromPromise, setup } from 'xstate';
+  import { assign, fromPromise, setup, and, not } from 'xstate';
   import { onMount } from 'svelte';
 
   type StateMachineContext = {
+    isVideo: boolean,
     currentMemoryAsset: MemoryAsset | undefined;
     videoElement: HTMLVideoElement | undefined;
+    photoProgressController: Tween<number> | undefined;
     durationMs: number;
     elapsedMs: number;
   };
@@ -72,44 +74,41 @@
     input: StateMachineContext;
   };
 
-  const PHOTO_PLAY_DURATION = 5000;
-  const createPhotoTween = () => {
-    return new Tween<number>(0, {
-      duration: (from: number, to: number) => (to ? PHOTO_PLAY_DURATION * (to - from) : 0),
-    });
-  };
-  let photoProgressBarController: Tween<number> | null = $state(createPhotoTween());
-
-
-  const isVideo = (memoryAsset: MemoryAsset | undefined): boolean => memoryAsset?.asset.type === AssetTypeEnum.Video;
-  const hasNextAsset = (context: StateMachineContext) => !!(context.currentMemoryAsset && context.currentMemoryAsset.next);
-  const hasPreviousAsset = (context: StateMachineContext) => !!(context.currentMemoryAsset && context.currentMemoryAsset.previous);
-
   const memoryViewerMachine = setup({
     types: {
       context: {} as StateMachineContext,
     },
     actors: {
+      initAsset: fromPromise(async ({ input }: VideoInput) => {
+        await input.photoProgressController?.set(0);
+      }),
       pauseAsset: fromPromise(async ({ input }: VideoInput) => {
-        if (isVideo(input.currentMemoryAsset)) {
+        if (input.isVideo) {
           input.videoElement?.pause();
         } else {
-          await photoProgressBarController?.set(photoProgressBarController?.current);
+          await input.photoProgressController?.set(input.photoProgressController?.current);
         }
       }),
       playAsset: fromPromise(async ({ input }: VideoInput) => {
         // eslint-disable-next-line unicorn/prefer-ternary
-        if (isVideo(input.currentMemoryAsset)) {
+        if (input.isVideo) {
           await input.videoElement?.play();
         } else {
-          await photoProgressBarController?.set(1);
+          await input.photoProgressController?.set(1);
         }
       }),
     },
+    guards: {
+      hasNextAsset: ({ context }) => !!(context.currentMemoryAsset && context.currentMemoryAsset.next),
+      hasPreviousAsset: ({ context }) => !!(context.currentMemoryAsset && context.currentMemoryAsset.previous),
+      hasFinishedPlayback: ({ context }) => context.elapsedMs === context.durationMs,
+    },
   }).createMachine({
     context: {
+      isVideo: false,
       currentMemoryAsset: undefined,
       videoElement: undefined,
+      photoProgressController: undefined,
       durationMs: 0,
       elapsedMs: 0,
     },
@@ -131,15 +130,19 @@
         type: 'final',
       },
       init_asset: {
+        invoke: {
+          src: 'initAsset',
+          input: ({ context }) => context,
+        },
         on: {
           ASSET_READY: {
             target: 'ready',
-            actions: assign(({ context, event }) => {
-              const assetIsVideo = isVideo(context.currentMemoryAsset);
-              photoProgressBarController = assetIsVideo ? null : createPhotoTween();
+            actions: assign(({ event }) => {
               return {
-                videoElement: assetIsVideo ? event.videoElement : undefined,
-                durationMs: assetIsVideo ? event.videoElement.duration * 1000 : PHOTO_PLAY_DURATION,
+                isVideo: event.isVideo,
+                videoElement: event.isVideo ? event.videoElement : undefined,
+                photoProgressController: event.isVideo ? undefined : event.photoProgressController,
+                durationMs: event.isVideo ? event.videoElement.duration * 1000 : event.durationMs,
                 elapsedMs: 0,
               };
             }),
@@ -152,18 +155,19 @@
           NEXT: [
             {
               target: 'init_asset',
-              guard: ({ context }) => hasNextAsset(context),
+              guard: 'hasNextAsset',
               actions: assign({
                 currentMemoryAsset: (context) => context.context?.currentMemoryAsset?.next,
               }),
             },
             {
               target: 'ready.paused',
-              guard: ({ context }) => !hasNextAsset(context) && context.elapsedMs === context.durationMs,
-            }],
+              guard: and([not('hasNextAsset'), 'hasFinishedPlayback']),
+            },
+          ],
           PREVIOUS: {
             target: 'init_asset',
-            guard: ({ context }) => hasPreviousAsset(context),
+            guard: 'hasPreviousAsset',
             actions: assign({
               currentMemoryAsset: (state) => state.context?.currentMemoryAsset?.previous,
             }),
@@ -207,12 +211,18 @@
   });
 
   const { snapshot, send } = useMachine(memoryViewerMachine);
-
   snapshot.subscribe((data) => {
     console.log(`STATE MACHINE VALUE: ${JSON.stringify(data.value)}`);
     console.log(data.context);
   });
 
+  const PHOTO_PLAY_DURATION = 5000;
+  const createPhotoTween = () => {
+    return new Tween<number>(0, {
+      duration: (from: number, to: number) => (to ? PHOTO_PLAY_DURATION * (to - from) : 0),
+    });
+  };
+  const photoProgressController: Tween<number> = $state(createPhotoTween());
   let memoryGallery: HTMLElement | undefined = $state();
   let memoryWrapper: HTMLElement | undefined = $state();
   let galleryInView = $state(false);
@@ -408,9 +418,9 @@
   });
 
   $effect(() => {
-    if (photoProgressBarController) {
-      send({ type: 'TIMING', elapsedMs: photoProgressBarController.current * PHOTO_PLAY_DURATION });
-      if (photoProgressBarController.current === 1) {
+    if (photoProgressController) {
+      send({ type: 'TIMING', elapsedMs: photoProgressController.current * PHOTO_PLAY_DURATION });
+      if (photoProgressController.current === 1) {
         send({ type: 'NEXT' });
       }
     }
@@ -614,7 +624,7 @@
                     draggable="false"
                     muted={$videoViewerMuted}
                     transition:fade
-                    oncanplay={() => send({ type: 'ASSET_READY', isVideo, videoElement })}
+                    oncanplay={() => send({ type: 'ASSET_READY',isVideo, videoElement })}
                     ontimeupdate={() => send({ type: 'TIMING', elapsedMs: (videoElement?.currentTime ?? 0) * 1000})}
                     onended={() => send({type:'NEXT'})}
                   ></video>
@@ -629,7 +639,7 @@
                     draggable="false"
                     transition:fade
                     onload={() => {
-                      send({ type: 'ASSET_READY', isVideo, photoProgressBarController });
+                      send({ type: 'ASSET_READY', isVideo, photoProgressController, durationMs: PHOTO_PLAY_DURATION });
                     }}
                   />
                 {/if}

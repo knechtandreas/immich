@@ -86,11 +86,11 @@
   let galleryInView = $state(false);
   let isSaved = $derived($snapshot.context.currentMemoryAsset?.memory.isSaved);
 
-  const { isViewing } = assetViewingStore;
+  const { isViewing, asset: assetInViewer } = assetViewingStore;
   const viewport: Viewport = $state({ width: 0, height: 0 });
   const assetInteraction = new AssetInteraction();
   let videoElement: HTMLVideoElement | undefined = $state();
-  const asHref = (asset: AssetResponseDto) => `?${QueryParameter.ID}=${asset.id}`;
+  const asHref = (asset: AssetResponseDto) => `/memory?${QueryParameter.ID}=${asset.id}`;
   const handleEscape = async () => goto(AppRoute.PHOTOS);
   const handleSelectAll = () =>
     assetInteraction.selectAssets($snapshot.context.currentMemoryAsset?.memory.assets || []);
@@ -108,11 +108,10 @@
     return ($snapshot.context.elapsedMs / $snapshot.context.durationMs) * 100;
   };
 
-  const navigateToAsset = async (assetId: string | undefined) => {
+  const navigateToAsset = (assetId: string | undefined) => {
     const memoryAsset = memoryStore.getMemoryAsset(assetId);
     if (memoryAsset) {
       send({ type: 'NAVIGATE', targetMemoryAsset: memoryAsset });
-      await goto(asHref(memoryAsset.asset));
     }
   };
   const handleDeleteOrArchiveAssets = (ids: string[]) => {
@@ -180,6 +179,14 @@
   });
 
   $effect(() => {
+    // If the viewer is closed, then lets navigate to the asset that was last viewed in the viewer.
+    if (!$isViewing && $assetInViewer) {
+      void navigateToAsset($assetInViewer.id);
+    }
+  });
+
+  $effect(() => {
+    // This will resume playback (or pause it) if either gallery or viewer is closed/opened.
     const galleryAndViewerClosed = !$isViewing && !galleryInView;
     send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed });
   });
@@ -252,9 +259,9 @@
             class="relative w-full py-2"
             href={asHref(asset)}
             aria-label={$t('view')}
-            onclick={async (e) => {
+            onclick={(e) => {
               e.preventDefault();
-              await navigateToAsset(asset.id);
+              navigateToAsset(asset.id);
             }}
           >
             <span class="absolute left-0 h-[2px] w-full bg-gray-500"></span>
@@ -531,20 +538,6 @@
         bind:this={memoryGallery}
       >
         <GalleryViewer
-          onNext={() => {
-            return new Promise<AssetResponseDto | undefined>((resolve, reject) => {
-              send({ type: 'NEXT' });
-              // TODO
-              resolve(undefined);
-            });
-          }}
-          onPrevious={() => {
-            return new Promise<AssetResponseDto | undefined>((resolve, reject) => {
-              send({ type: 'PREVIOUS' });
-              // TODO
-              resolve(undefined);
-            });
-          }}
           assets={current.memory.assets}
           {viewport}
           {assetInteraction}

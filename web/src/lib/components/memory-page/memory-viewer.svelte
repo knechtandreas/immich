@@ -62,13 +62,18 @@
   import { onMount } from 'svelte';
   import { memoryViewerMachine } from '$lib/components/memory-page/memory-viewer-state-machine';
 
-  const { snapshot, send, actorRef } = useMachine(memoryViewerMachine);
-  snapshot.subscribe((data) => {
+  const { snapshot, actorRef: memoryViewerActor } = useMachine(memoryViewerMachine);
+  const current = $derived($snapshot.context.currentMemoryAsset);
+  memoryViewerActor.subscribe((data) => {
     const eventString = `${JSON.stringify(data.value)}`;
-    console.log(`STATE MACHINE VALUE: ${eventString}`, data.context);
+    if(eventString.includes('playing') && data.context.elapsedMs < 1) {
+      console.log(`STATE MACHINE VALUE: ${eventString}`, data.context);
+    } else if (!eventString.includes('playing')) {
+      console.log(`STATE MACHINE VALUE: ${eventString}`, data.context);
+    }
   });
-  actorRef.on('navigate_to_asset', () => {
-    const asset = $snapshot.context.currentMemoryAsset?.asset;
+  memoryViewerActor.on('navigate_to_asset', () => {
+    const asset = current?.asset;
     if (asset) {
       void goto(asHref(asset));
     }
@@ -84,7 +89,7 @@
   let memoryGallery: HTMLElement | undefined = $state();
   let memoryWrapper: HTMLElement | undefined = $state();
   let galleryInView = $state(false);
-  let isSaved = $derived($snapshot.context.currentMemoryAsset?.memory.isSaved);
+  let isSaved = $derived(current?.memory.isSaved);
 
   const { isViewing, asset: assetInViewer } = assetViewingStore;
   const viewport: Viewport = $state({ width: 0, height: 0 });
@@ -93,16 +98,16 @@
   const asHref = (asset: AssetResponseDto) => `/memory?${QueryParameter.ID}=${asset.id}`;
   const handleEscape = async () => goto(AppRoute.PHOTOS);
   const handleSelectAll = () =>
-    assetInteraction.selectAssets($snapshot.context.currentMemoryAsset?.memory.assets || []);
+    assetInteraction.selectAssets(current?.memory.assets || []);
 
   const toProgressPercentage = (index: number) => {
-    if ($snapshot.context.currentMemoryAsset?.assetIndex === undefined || $snapshot.context.durationMs === 0) {
+    if (current?.assetIndex === undefined || $snapshot.context.durationMs === 0) {
       return 0;
     }
-    if (index < $snapshot.context.currentMemoryAsset?.assetIndex) {
+    if (index < current?.assetIndex) {
       return 100;
     }
-    if (index > $snapshot.context.currentMemoryAsset?.assetIndex) {
+    if (index > current?.assetIndex) {
       return 0;
     }
     return ($snapshot.context.elapsedMs / $snapshot.context.durationMs) * 100;
@@ -111,40 +116,40 @@
   const navigateToAsset = (assetId: string | undefined) => {
     const memoryAsset = memoryStore.getMemoryAsset(assetId);
     if (memoryAsset) {
-      send({ type: 'NAVIGATE', targetMemoryAsset: memoryAsset });
+      memoryViewerActor.send({ type: 'NAVIGATE', targetMemoryAsset: memoryAsset });
     }
   };
   const handleDeleteOrArchiveAssets = (ids: string[]) => {
-    if (!$snapshot.context.currentMemoryAsset) {
+    if (!current) {
       return;
     }
     memoryStore.hideAssetsFromMemory(ids);
     // init(page);
   };
   const handleDeleteMemoryAsset = async () => {
-    if (!$snapshot.context.currentMemoryAsset) {
+    if (!current) {
       return;
     }
 
-    await memoryStore.deleteAssetFromMemory($snapshot.context.currentMemoryAsset.asset.id);
+    await memoryStore.deleteAssetFromMemory(current.asset.id);
     // init(page);
   };
   const handleDeleteMemory = async () => {
-    if (!$snapshot.context.currentMemoryAsset) {
+    if (!current) {
       return;
     }
 
-    await memoryStore.deleteMemory($snapshot.context.currentMemoryAsset.memory.id);
+    await memoryStore.deleteMemory(current.memory.id);
     notificationController.show({ message: $t('removed_memory'), type: NotificationType.Info });
     // init(page);
   };
   const handleSaveMemory = async () => {
-    if (!$snapshot.context.currentMemoryAsset) {
+    if (!current) {
       return;
     }
 
-    const newSavedState = !$snapshot.context.currentMemoryAsset.memory.isSaved;
-    await memoryStore.updateMemorySaved($snapshot.context.currentMemoryAsset.memory.id, newSavedState);
+    const newSavedState = !current.memory.isSaved;
+    await memoryStore.updateMemorySaved(current.memory.id, newSavedState);
     notificationController.show({
       message: newSavedState ? $t('added_to_favorites') : $t('removed_from_favorites'),
       type: NotificationType.Info,
@@ -160,14 +165,14 @@
   onMount(async () => {
     await memoryStore.initialize();
     const currentMemoryAsset = loadFromParams(page);
-    send({ type: 'LOADED', currentMemoryAsset });
+    memoryViewerActor.send({ type: 'LOADED', currentMemoryAsset });
   });
 
   $effect(() => {
     if (photoProgressController) {
-      send({ type: 'TIMING', elapsedMs: photoProgressController.current * PHOTO_PLAY_DURATION });
+      memoryViewerActor.send({ type: 'TIMING', elapsedMs: photoProgressController.current * PHOTO_PLAY_DURATION });
       if (photoProgressController.current === 1) {
-        send({ type: 'NEXT' });
+        memoryViewerActor.send({ type: 'NEXT' });
       }
     }
   });
@@ -188,7 +193,7 @@
   $effect(() => {
     // This will resume playback (or pause it) if either gallery or viewer is closed/opened.
     const galleryAndViewerClosed = !$isViewing && !galleryInView;
-    send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed });
+    memoryViewerActor.send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed });
   });
 </script>
 
@@ -196,10 +201,10 @@
   use:shortcuts={$isViewing
     ? []
     : [
-        { shortcut: { key: 'ArrowRight' }, onShortcut: () => send({ type: 'NEXT' }) },
-        { shortcut: { key: 'd' }, onShortcut: () => send({ type: 'NEXT' }) },
-        { shortcut: { key: 'ArrowLeft' }, onShortcut: () => send({ type: 'PREVIOUS' }) },
-        { shortcut: { key: 'a' }, onShortcut: () => send({ type: 'PREVIOUS' }) },
+        { shortcut: { key: 'ArrowRight' }, onShortcut: () => memoryViewerActor.send({ type: 'NEXT' }) },
+        { shortcut: { key: 'd' }, onShortcut: () => memoryViewerActor.send({ type: 'NEXT' }) },
+        { shortcut: { key: 'ArrowLeft' }, onShortcut: () => memoryViewerActor.send({ type: 'PREVIOUS' }) },
+        { shortcut: { key: 'a' }, onShortcut: () => memoryViewerActor.send({ type: 'PREVIOUS' }) },
         { shortcut: { key: 'Escape' }, onShortcut: () => handleEscape() },
       ]}
 />
@@ -235,8 +240,7 @@
 {/if}
 
 <section id="memory-viewer" class="w-full bg-immich-dark-gray" bind:this={memoryWrapper}>
-  {#if $snapshot.context.currentMemoryAsset}
-    {@const current = $snapshot.context.currentMemoryAsset}
+  {#if current}
     <ControlAppBar onClose={() => goto(AppRoute.PHOTOS)} forceDark multiRow>
       {#snippet leading()}
         {#if current}
@@ -250,7 +254,7 @@
         <CircleIconButton
           title={$snapshot.matches({ ready: 'paused' }) ? $t('play_memories') : $t('pause_memories')}
           icon={$snapshot.matches({ ready: 'paused' }) ? mdiPlay : mdiPause}
-          onclick={() => send({ type: $snapshot.matches({ ready: 'playing' }) ? 'PAUSE' : 'PLAY' })}
+          onclick={() => memoryViewerActor.send({ type: $snapshot.matches({ ready: 'playing' }) ? 'PAUSE' : 'PLAY' })}
           class="hover:text-black"
         />
 
@@ -361,9 +365,9 @@
                     draggable="false"
                     muted={$videoViewerMuted}
                     transition:fade
-                    oncanplay={() => send({ type: 'ASSET_READY', isVideo, videoElement })}
-                    ontimeupdate={() => send({ type: 'TIMING', elapsedMs: (videoElement?.currentTime ?? 0) * 1000 })}
-                    onended={() => send({ type: 'NEXT' })}
+                    oncanplay={() => memoryViewerActor.send({ type: 'ASSET_READY', isVideo, videoElement })}
+                    ontimeupdate={() => memoryViewerActor.send({ type: 'TIMING', elapsedMs: (videoElement?.currentTime ?? 0) * 1000 })}
+                    onended={() => memoryViewerActor.send({ type: 'NEXT' })}
                   ></video>
                 {:else}
                   <img
@@ -376,7 +380,7 @@
                     draggable="false"
                     transition:fade
                     onload={() => {
-                      send({ type: 'ASSET_READY', isVideo, photoProgressController, durationMs: PHOTO_PLAY_DURATION });
+                      memoryViewerActor.send({ type: 'ASSET_READY', isVideo, photoProgressController, durationMs: PHOTO_PLAY_DURATION });
                     }}
                   />
                 {/if}
@@ -410,7 +414,7 @@
                   icon={mdiDotsVertical}
                   padding="3"
                   title={$t('menu')}
-                  onclick={() => send({ type: 'PAUSE' })}
+                  onclick={() => memoryViewerActor.send({ type: 'PAUSE' })}
                   direction="left"
                   size="20"
                   align="bottom-right"
@@ -445,7 +449,7 @@
                   title={$t('previous_memory')}
                   icon={mdiChevronLeft}
                   color="dark"
-                  onclick={() => send({ type: 'PREVIOUS' })}
+                  onclick={() => memoryViewerActor.send({ type: 'PREVIOUS' })}
                 />
               </div>
             {/if}
@@ -456,7 +460,7 @@
                   title={$t('next_memory')}
                   icon={mdiChevronRight}
                   color="dark"
-                  onclick={() => send({ type: 'NEXT' })}
+                  onclick={() => memoryViewerActor.send({ type: 'NEXT' })}
                 />
               </div>
             {/if}
@@ -537,11 +541,7 @@
         use:resizeObserver={({ height, width }) => ((viewport.height = height), (viewport.width = width))}
         bind:this={memoryGallery}
       >
-        <GalleryViewer
-          assets={current.memory.assets}
-          {viewport}
-          {assetInteraction}
-        />
+        <GalleryViewer assets={current.memory.assets} {viewport} {assetInteraction} />
       </div>
     </section>
   {/if}
@@ -549,7 +549,8 @@
 
 <style>
   .main-view {
-    box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.3),
-    0 8px 12px 6px rgba(0, 0, 0, 0.15);
+    box-shadow:
+      0 4px 4px 0 rgba(0, 0, 0, 0.3),
+      0 8px 12px 6px rgba(0, 0, 0, 0.15);
   }
 </style>

@@ -164,9 +164,13 @@
   };
 
   onMount(async () => {
-    await memoryStore.initialize();
-    const currentMemoryAsset = loadFromParams(page);
-    memoryViewerActor.send({ type: 'LOADED', currentMemoryAsset });
+    try {
+      await memoryStore.initialize();
+      const currentMemoryAsset = loadFromParams(page);
+      memoryViewerActor.send({ type: 'LOADED', currentMemoryAsset });
+    } catch (error) {
+      memoryViewerActor.send({ type: 'FAIL', error });
+    }
   });
 
   $effect(() => {
@@ -318,10 +322,7 @@
             {#if current.previousMemory && current.previousMemory.assets.length > 0}
               <img
                 class="h-full w-full rounded-2xl object-cover"
-                src={getAssetThumbnailUrl({
-                  id: current.previousMemory.assets[0].id,
-                  size: AssetMediaSize.Preview,
-                })}
+                src={getAssetThumbnailUrl({ id: current.previousMemory.assets[0].id, size: AssetMediaSize.Preview })}
                 alt={$t('previous_memory')}
                 draggable="false"
               />
@@ -359,10 +360,7 @@
                     playsinline
                     class="h-full w-full rounded-2xl object-contain transition-all"
                     src={getAssetPlaybackUrl({ id: current.asset.id })}
-                    poster={getAssetThumbnailUrl({
-                      id: current.asset.id,
-                      size: AssetMediaSize.Preview,
-                    })}
+                    poster={getAssetThumbnailUrl({ id: current.asset.id, size: AssetMediaSize.Preview })}
                     draggable="false"
                     muted={$videoViewerMuted}
                     transition:fade
@@ -374,10 +372,7 @@
                 {:else}
                   <img
                     class="h-full w-full rounded-2xl object-contain transition-all"
-                    src={getAssetThumbnailUrl({
-                      id: current.asset.id,
-                      size: AssetMediaSize.Preview,
-                    })}
+                    src={getAssetThumbnailUrl({ id: current.asset.id, size: AssetMediaSize.Preview })}
                     alt={current.asset.exifInfo?.description}
                     draggable="false"
                     transition:fade
@@ -495,10 +490,7 @@
             {#if current.nextMemory && current.nextMemory.assets.length > 0}
               <img
                 class="h-full w-full rounded-2xl object-cover"
-                src={getAssetThumbnailUrl({
-                  id: current.nextMemory.assets[0].id,
-                  size: AssetMediaSize.Preview,
-                })}
+                src={getAssetThumbnailUrl({ id: current.nextMemory.assets[0].id, size: AssetMediaSize.Preview })}
                 alt={$t('next_memory')}
                 draggable="false"
               />
@@ -556,8 +548,7 @@
 
 <style>
   .main-view {
-    box-shadow:
-      0 4px 4px 0 rgba(0, 0, 0, 0.3),
-      0 8px 12px 6px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.3),
+    0 8px 12px 6px rgba(0, 0, 0, 0.15);
   }
 </style>

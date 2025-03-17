@@ -1,10 +1,10 @@
 import type { MemoryAsset } from '$lib/stores/memory.store.svelte';
 import { Tween } from 'svelte/motion';
-import { and, assign, emit, enqueueActions, fromPromise, not, raise, setup } from 'xstate';
+import { and, assign, emit, enqueueActions, fromPromise, not, setup } from 'xstate';
 
 type StateMachineContext = {
-  isVideo: boolean,
-  galleryAndViewerClosed: boolean,
+  isVideo: boolean;
+  galleryAndViewerClosed: boolean;
   currentMemoryAsset: MemoryAsset | undefined;
   videoElement: HTMLVideoElement | undefined;
   photoProgressController: Tween<number> | undefined;
@@ -53,7 +53,8 @@ export const memoryViewerMachine = setup({
   },
   on: {
     GALLERY_VIEWER_TOGGLED: {
-      description: 'When either the gallery or asset viewer are displayed, then playback should stop. Similarly we should resume play when they are closed.',
+      description:
+        'When either the gallery or asset viewer are displayed, then playback should stop. Similarly we should resume play when they are closed.',
       actions: enqueueActions(({ event, enqueue }) => {
         enqueue.assign({ galleryAndViewerClosed: event.galleryAndViewerClosed });
         if (event.galleryAndViewerClosed) {
@@ -66,7 +67,8 @@ export const memoryViewerMachine = setup({
   initial: 'loading_memories',
   states: {
     loading_memories: {
-      description: 'The entry state of the memory viewer, during which memories are being fetched from the remote backend.',
+      description:
+        'The entry state of the memory viewer, during which memories are being fetched from the remote backend.',
       on: {
         FAIL: {
           target: 'failure',

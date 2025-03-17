@@ -97,8 +97,7 @@
   let videoElement: HTMLVideoElement | undefined = $state();
   const asHref = (asset: AssetResponseDto) => `/memory?${QueryParameter.ID}=${asset.id}`;
   const handleEscape = async () => goto(AppRoute.PHOTOS);
-  const handleSelectAll = () =>
-    assetInteraction.selectAssets(current?.memory.assets || []);
+  const handleSelectAll = () => assetInteraction.selectAssets(current?.memory.assets || []);
 
   const toProgressPercentage = (index: number) => {
     if (current?.assetIndex === undefined || $snapshot.context.durationMs === 0) {
@@ -368,7 +367,8 @@
                     muted={$videoViewerMuted}
                     transition:fade
                     oncanplay={() => memoryViewerActor.send({ type: 'ASSET_READY', isVideo, videoElement })}
-                    ontimeupdate={() => memoryViewerActor.send({ type: 'TIMING', elapsedMs: (videoElement?.currentTime ?? 0) * 1000 })}
+                    ontimeupdate={() =>
+                      memoryViewerActor.send({ type: 'TIMING', elapsedMs: (videoElement?.currentTime ?? 0) * 1000 })}
                     onended={() => memoryViewerActor.send({ type: 'NEXT' })}
                   ></video>
                 {:else}
@@ -382,7 +382,12 @@
                     draggable="false"
                     transition:fade
                     onload={() => {
-                      memoryViewerActor.send({ type: 'ASSET_READY', isVideo, photoProgressController, durationMs: PHOTO_PLAY_DURATION });
+                      memoryViewerActor.send({
+                        type: 'ASSET_READY',
+                        isVideo,
+                        photoProgressController,
+                        durationMs: PHOTO_PLAY_DURATION,
+                      });
                     }}
                   />
                 {/if}
@@ -551,7 +556,8 @@
 
 <style>
   .main-view {
-    box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.3),
-    0 8px 12px 6px rgba(0, 0, 0, 0.15);
+    box-shadow:
+      0 4px 4px 0 rgba(0, 0, 0, 0.3),
+      0 8px 12px 6px rgba(0, 0, 0, 0.15);
   }
 </style>

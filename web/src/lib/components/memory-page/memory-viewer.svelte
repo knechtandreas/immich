@@ -113,8 +113,12 @@
   };
 
   const navigateToAsset = (assetId: string | undefined) => {
+    if (current?.asset.id === assetId) {
+      // if we're already viewing this asset, no need to navigate.
+      return;
+    }
     const memoryAsset = memoryStore.getMemoryAsset(assetId);
-    if (memoryAsset) {
+    if (memoryAsset && current?.asset.id !== assetId) {
       memoryViewerActor.send({ type: 'NAVIGATE', targetMemoryAsset: memoryAsset });
     }
   };
@@ -548,7 +552,8 @@
 
 <style>
   .main-view {
-    box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.3),
-    0 8px 12px 6px rgba(0, 0, 0, 0.15);
+    box-shadow:
+      0 4px 4px 0 rgba(0, 0, 0, 0.3),
+      0 8px 12px 6px rgba(0, 0, 0, 0.15);
   }
 </style>

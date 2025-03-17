@@ -72,9 +72,7 @@ export const memoryViewerMachine = setup({
       on: {
         FAIL: {
           target: 'failure',
-          actions: [
-            ({ event }) => console.error(`Error initialising memories: ${event.error}`),
-          ],
+          actions: [({ event }) => console.error(`Error initialising memories: ${event.error}`)],
         },
         LOADED: {
           target: 'init_asset',

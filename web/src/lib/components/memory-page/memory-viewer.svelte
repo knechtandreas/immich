@@ -123,25 +123,28 @@
     if (!current) {
       return;
     }
+    const previousAssetId = memoryStore.getMemoryAsset(ids[0])?.previous?.asset.id;
     memoryStore.hideAssetsFromMemory(ids);
-    // init(page);
+    navigateToAsset(previousAssetId);
   };
   const handleDeleteMemoryAsset = async () => {
     if (!current) {
       return;
     }
 
+    const previousAssetId = current.previous?.asset.id;
     await memoryStore.deleteAssetFromMemory(current.asset.id);
-    // init(page);
+    navigateToAsset(previousAssetId);
   };
   const handleDeleteMemory = async () => {
     if (!current) {
       return;
     }
 
+    const previousAssetId = current.previousMemory?.assets[0]?.id;
     await memoryStore.deleteMemory(current.memory.id);
     notificationController.show({ message: $t('removed_memory'), type: NotificationType.Info });
-    // init(page);
+    navigateToAsset(previousAssetId);
   };
   const handleSaveMemory = async () => {
     if (!current) {
@@ -154,7 +157,6 @@
       message: newSavedState ? $t('added_to_favorites') : $t('removed_from_favorites'),
       type: NotificationType.Info,
     });
-    // init(page);
   };
 
   const loadFromParams = (page: Page | NavigationTarget | null) => {

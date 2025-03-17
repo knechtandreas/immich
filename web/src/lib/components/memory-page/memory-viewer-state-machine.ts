@@ -1,6 +1,6 @@
 import type { MemoryAsset } from '$lib/stores/memory.store.svelte';
 import { Tween } from 'svelte/motion';
-import { and, assign, emit, fromPromise, not, raise, setup } from 'xstate';
+import { and, assign, emit, enqueueActions, fromPromise, not, raise, setup } from 'xstate';
 
 type StateMachineContext = {
   isVideo: boolean,
@@ -52,10 +52,12 @@ export const memoryViewerMachine = setup({
   },
   on: {
     GALLERY_VIEWER_TOGGLED: {
-      actions: [
-        assign(({ event }) => ({ galleryAndViewerClosed: event.galleryAndViewerClosed })),
-        raise(({ event }) => ({ type: event.galleryAndViewerClosed ? 'PLAY' : 'PAUSE' })),
-      ],
+      actions: enqueueActions(({ event, enqueue }) => {
+        enqueue.assign({ galleryAndViewerClosed: event.galleryAndViewerClosed });
+        if (event.galleryAndViewerClosed) {
+          enqueue.raise({ type: 'PLAY' });
+        }
+      }),
     },
   },
   id: 'memory-viewer',
@@ -103,20 +105,20 @@ export const memoryViewerMachine = setup({
       on: {
         NEXT: [
           {
-            target: 'init_asset',
             guard: 'hasNextAsset',
+            target: 'init_asset',
             actions: assign({
               currentMemoryAsset: (context) => context.context?.currentMemoryAsset?.next,
             }),
           },
           {
-            target: 'ready.paused',
             guard: and([not('hasNextAsset'), 'hasFinishedPlayback']),
+            target: 'ready.paused',
           },
         ],
         PREVIOUS: {
-          target: 'init_asset',
           guard: 'hasPreviousAsset',
+          target: 'init_asset',
           actions: assign({
             currentMemoryAsset: (state) => state.context?.currentMemoryAsset?.previous,
           }),

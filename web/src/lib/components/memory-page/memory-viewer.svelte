@@ -66,7 +66,7 @@
   const current = $derived($snapshot.context.currentMemoryAsset);
   memoryViewerActor.subscribe((data) => {
     const eventString = `${JSON.stringify(data.value)}`;
-    if(eventString.includes('playing') && data.context.elapsedMs < 1) {
+    if (data.matches({ ready: 'playing' }) && data.context.elapsedMs < 1) {
       console.log(`STATE MACHINE VALUE: ${eventString}`, data.context);
     } else if (!eventString.includes('playing')) {
       console.log(`STATE MACHINE VALUE: ${eventString}`, data.context);
@@ -169,11 +169,11 @@
   });
 
   $effect(() => {
-    if (photoProgressController) {
+    if (memoryViewerActor.getSnapshot().can({ type: 'TIMING' })) {
       memoryViewerActor.send({ type: 'TIMING', elapsedMs: photoProgressController.current * PHOTO_PLAY_DURATION });
-      if (photoProgressController.current === 1) {
-        memoryViewerActor.send({ type: 'NEXT' });
-      }
+    }
+    if (photoProgressController.current === 1) {
+      memoryViewerActor.send({ type: 'NEXT' });
     }
   });
 
@@ -549,8 +549,7 @@
 
 <style>
   .main-view {
-    box-shadow:
-      0 4px 4px 0 rgba(0, 0, 0, 0.3),
-      0 8px 12px 6px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.3),
+    0 8px 12px 6px rgba(0, 0, 0, 0.15);
   }
 </style>

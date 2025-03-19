@@ -221,10 +221,8 @@
 
   $effect(() => {
     if (assetInteraction.focussedAssetId) {
-      const containsFocussedAsset = current?.memory.assets.some(
-        (asset) => asset.id === assetInteraction.focussedAssetId,
-      );
-      if (!containsFocussedAsset) {
+      const hasFocussedAsset = current?.memory.assets.some((asset) => asset.id === assetInteraction.focussedAssetId);
+      if (!hasFocussedAsset) {
         // if the current memory doesn't contain the focussed asset, reset focus. This may happen if we skip between memories.
         assetInteraction.focussedAssetId = null;
       }

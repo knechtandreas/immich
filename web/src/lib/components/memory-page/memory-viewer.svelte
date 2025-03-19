@@ -64,7 +64,21 @@
 
   const { snapshot, actorRef: memoryViewerActor } = useMachine(memoryViewerMachine);
   const current = $derived($snapshot.context.currentMemoryAsset);
-  const paused = $snapshot.matches({ ready: 'paused' });
+  const isVideo = $derived(current?.asset.type === AssetTypeEnum.Video);
+  const paused = $derived($snapshot.matches({ ready: 'paused' }));
+  let memoryGallery: HTMLElement | undefined = $state();
+  let memoryWrapper: HTMLElement | undefined = $state();
+  let galleryInView = $state(false);
+  let isSaved = $derived(current?.memory.isSaved);
+
+  const { isViewing, asset: assetInViewer } = assetViewingStore;
+  const viewport: Viewport = $state({ width: 0, height: 0 });
+  const PHOTO_PLAY_DURATION = 5000;
+  const photoProgressController: Tween<number> = $state(new Tween<number>(0, {
+    duration: (from: number, to: number) => (to ? PHOTO_PLAY_DURATION * (to - from) : 0),
+  }));
+  let videoElement: HTMLVideoElement | undefined = $state();
+
 
   // TODO: Just for development. DELETE before MERGE
   memoryViewerActor.subscribe((data) => {
@@ -83,23 +97,22 @@
       void goto(asHref(asset));
     }
   });
+  memoryViewerActor.on('reset_player', () => {
+    void photoProgressController?.set(0);
+  });
+  memoryViewerActor.on('pause_player', () => {
+    if (isVideo) {
+      videoElement?.pause();
+    } else {
+      void photoProgressController?.set(photoProgressController?.current);
+    }
+  });
+  memoryViewerActor.on('start_player', () => {
+    void (isVideo ? videoElement?.play() : photoProgressController?.set(1));
+  });
 
-  const PHOTO_PLAY_DURATION = 5000;
-  const createPhotoTween = () => {
-    return new Tween<number>(0, {
-      duration: (from: number, to: number) => (to ? PHOTO_PLAY_DURATION * (to - from) : 0),
-    });
-  };
-  const photoProgressController: Tween<number> = $state(createPhotoTween());
-  let memoryGallery: HTMLElement | undefined = $state();
-  let memoryWrapper: HTMLElement | undefined = $state();
-  let galleryInView = $state(false);
-  let isSaved = $derived(current?.memory.isSaved);
 
-  const { isViewing, asset: assetInViewer } = assetViewingStore;
-  const viewport: Viewport = $state({ width: 0, height: 0 });
   const assetInteraction = new AssetInteraction();
-  let videoElement: HTMLVideoElement | undefined = $state();
   const asHref = (asset: AssetResponseDto) => `/memory?${QueryParameter.ID}=${asset.id}`;
   const handleEscape = async () => goto(AppRoute.PHOTOS);
   const handleSelectAll = () => assetInteraction.selectAssets(current?.memory.assets || []);
@@ -264,7 +277,7 @@
         <CircleIconButton
           title={paused ? $t('play_memories') : $t('pause_memories')}
           icon={paused ? mdiPlay : mdiPause}
-          onclick={() => memoryViewerActor.send({ type: paused ? 'PAUSE' : 'PLAY' })}
+          onclick={() => memoryViewerActor.send({ type: paused ? 'PLAY' : 'PAUSE' })}
           class="hover:text-black"
         />
 
@@ -356,7 +369,6 @@
         >
           <div class="relative h-full w-full rounded-2xl bg-black">
             {#key current.asset.id}
-              {@const isVideo = current.asset.type === AssetTypeEnum.Video}
               <div transition:fade class="h-full w-full">
                 {#if isVideo}
                   <video
@@ -369,7 +381,8 @@
                     draggable="false"
                     muted={$videoViewerMuted}
                     transition:fade
-                    oncanplay={() => memoryViewerActor.send({ type: 'ASSET_READY', isVideo, videoElement })}
+                    oncanplay={() =>
+                      memoryViewerActor.send({ type: 'ASSET_READY', durationMs: (videoElement?.duration ?? 0) * 1000 })}
                     ontimeupdate={() =>
                       memoryViewerActor.send({ type: 'TIMING', elapsedMs: (videoElement?.currentTime ?? 0) * 1000 })}
                     onended={() => memoryViewerActor.send({ type: 'NEXT' })}
@@ -384,8 +397,6 @@
                     onload={() => {
                       memoryViewerActor.send({
                         type: 'ASSET_READY',
-                        isVideo,
-                        photoProgressController,
                         durationMs: PHOTO_PLAY_DURATION,
                       });
                     }}
@@ -553,8 +564,7 @@
 
 <style>
   .main-view {
-    box-shadow:
-      0 4px 4px 0 rgba(0, 0, 0, 0.3),
-      0 8px 12px 6px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.3),
+    0 8px 12px 6px rgba(0, 0, 0, 0.15);
   }
 </style>

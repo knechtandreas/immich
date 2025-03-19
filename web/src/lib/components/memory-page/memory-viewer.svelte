@@ -74,11 +74,12 @@
   const { isViewing, asset: assetInViewer } = assetViewingStore;
   const viewport: Viewport = $state({ width: 0, height: 0 });
   const PHOTO_PLAY_DURATION = 5000;
-  const photoProgressController: Tween<number> = $state(new Tween<number>(0, {
-    duration: (from: number, to: number) => (to ? PHOTO_PLAY_DURATION * (to - from) : 0),
-  }));
+  const photoProgressController: Tween<number> = $state(
+    new Tween<number>(0, {
+      duration: (from: number, to: number) => (to ? PHOTO_PLAY_DURATION * (to - from) : 0),
+    }),
+  );
   let videoElement: HTMLVideoElement | undefined = $state();
-
 
   // TODO: Just for development. DELETE before MERGE
   memoryViewerActor.subscribe((data) => {
@@ -110,7 +111,6 @@
   memoryViewerActor.on('start_player', () => {
     void (isVideo ? videoElement?.play() : photoProgressController?.set(1));
   });
-
 
   const assetInteraction = new AssetInteraction();
   const asHref = (asset: AssetResponseDto) => `/memory?${QueryParameter.ID}=${asset.id}`;
@@ -221,15 +221,15 @@
 </script>
 
 <svelte:window
-  use:shortcuts={$isViewing
-    ? []
-    : [
+  use:shortcuts={$snapshot.context.galleryAndViewerClosed
+    ? [
         { shortcut: { key: 'ArrowRight' }, onShortcut: () => memoryViewerActor.send({ type: 'NEXT' }) },
         { shortcut: { key: 'd' }, onShortcut: () => memoryViewerActor.send({ type: 'NEXT' }) },
         { shortcut: { key: 'ArrowLeft' }, onShortcut: () => memoryViewerActor.send({ type: 'PREVIOUS' }) },
         { shortcut: { key: 'a' }, onShortcut: () => memoryViewerActor.send({ type: 'PREVIOUS' }) },
         { shortcut: { key: 'Escape' }, onShortcut: () => handleEscape() },
-      ]}
+      ]
+    : []}
 />
 
 {#if assetInteraction.selectionActive}
@@ -564,7 +564,8 @@
 
 <style>
   .main-view {
-    box-shadow: 0 4px 4px 0 rgba(0, 0, 0, 0.3),
-    0 8px 12px 6px rgba(0, 0, 0, 0.15);
+    box-shadow:
+      0 4px 4px 0 rgba(0, 0, 0, 0.3),
+      0 8px 12px 6px rgba(0, 0, 0, 0.15);
   }
 </style>

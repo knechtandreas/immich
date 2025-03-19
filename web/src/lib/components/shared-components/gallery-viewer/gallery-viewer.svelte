@@ -282,8 +282,6 @@
         { shortcut: { key: '?', shift: true }, onShortcut: () => (showShortcuts = !showShortcuts) },
         { shortcut: { key: '/' }, onShortcut: () => goto(AppRoute.EXPLORE) },
         { shortcut: { key: 'A', ctrl: true }, onShortcut: () => selectAllAssets() },
-        { shortcut: { key: 'ArrowRight' }, preventDefault: false, onShortcut: focusNextAsset },
-        { shortcut: { key: 'ArrowLeft' }, preventDefault: false, onShortcut: focusPreviousAsset },
       ];
 
       if (assetInteraction.selectionActive) {
@@ -293,6 +291,13 @@
           { shortcut: { key: 'Delete', shift: true }, onShortcut: onForceDelete },
           { shortcut: { key: 'D', ctrl: true }, onShortcut: () => deselectAllAssets() },
           { shortcut: { key: 'a', shift: true }, onShortcut: toggleArchive },
+        );
+      }
+
+      if (!disableAssetSelect) {
+        shortcuts.push(
+          { shortcut: { key: 'ArrowRight' }, preventDefault: false, onShortcut: focusNextAsset },
+          { shortcut: { key: 'ArrowLeft' }, preventDefault: false, onShortcut: focusPreviousAsset },
         );
       }
 

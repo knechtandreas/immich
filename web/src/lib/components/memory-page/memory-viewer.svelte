@@ -125,10 +125,6 @@
     if (memoryAsset && current?.asset.id !== assetId) {
       memoryViewerActor.send({ type: 'NAVIGATE', targetMemoryAsset: memoryAsset });
     }
-    if (index > current?.assetIndex) {
-      return 0;
-    }
-    return progressBarController.current * 100;
   };
   const handleDeleteOrArchiveAssets = (ids: string[]) => {
     if (!current) {
@@ -168,25 +164,6 @@
       message: newSavedState ? $t('added_to_favorites') : $t('removed_from_favorites'),
       type: NotificationType.Info,
     });
-    init(page);
-  };
-  const handleGalleryScrollsIntoView = () => {
-    galleryInView = true;
-    handlePromiseError(handleAction('galleryInView', 'pause'));
-  };
-  const handleGalleryScrollsOutOfView = () => {
-    galleryInView = false;
-    // only call play after the first page load. When page first loads the gallery will not be visible
-    // and calling play here will result in duplicate invocation.
-    if (!galleryFirstLoad) {
-      handlePromiseError(handleAction('galleryOutOfView', 'play'));
-    }
-    galleryFirstLoad = false;
-  };
-
-  const loadFromParams = (page: Page | NavigationTarget | null) => {
-    const assetId = page?.params?.assetId ?? page?.url.searchParams.get(QueryParameter.ID) ?? undefined;
-    return memoryStore.getMemoryAsset(assetId);
   };
 
   const loadFromParams = (page: Page | NavigationTarget | null) => {
@@ -564,8 +541,8 @@
       <div
         id="gallery-memory"
         use:intersectionObserver={{
-          onIntersect: handleGalleryScrollsIntoView,
-          onSeparate: handleGalleryScrollsOutOfView,
+          onIntersect: () => (galleryInView = true),
+          onSeparate: () => (galleryInView = false),
           bottom: '-200px',
         }}
         use:resizeObserver={({ height, width }) => ((viewport.height = height), (viewport.width = width))}

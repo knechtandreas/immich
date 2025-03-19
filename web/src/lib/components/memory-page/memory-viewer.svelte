@@ -64,6 +64,7 @@
 
   const { snapshot, actorRef: memoryViewerActor } = useMachine(memoryViewerMachine);
   const current = $derived($snapshot.context.currentMemoryAsset);
+  const paused = $snapshot.matches({ ready: 'paused' });
 
   // TODO: Just for development. DELETE before MERGE
   memoryViewerActor.subscribe((data) => {
@@ -117,10 +118,6 @@
   };
 
   const navigateToAsset = (assetId: string | undefined) => {
-    if (current?.asset.id === assetId) {
-      // if we're already viewing this asset, no need to navigate.
-      return;
-    }
     const memoryAsset = memoryStore.getMemoryAsset(assetId);
     if (memoryAsset && current?.asset.id !== assetId) {
       memoryViewerActor.send({ type: 'NAVIGATE', targetMemoryAsset: memoryAsset });
@@ -265,9 +262,9 @@
 
       <div class="flex place-content-center place-items-center gap-2 overflow-hidden">
         <CircleIconButton
-          title={$snapshot.matches({ ready: 'paused' }) ? $t('play_memories') : $t('pause_memories')}
-          icon={$snapshot.matches({ ready: 'paused' }) ? mdiPlay : mdiPause}
-          onclick={() => memoryViewerActor.send({ type: $snapshot.matches({ ready: 'playing' }) ? 'PAUSE' : 'PLAY' })}
+          title={paused ? $t('play_memories') : $t('pause_memories')}
+          icon={paused ? mdiPlay : mdiPause}
+          onclick={() => memoryViewerActor.send({ type: paused ? 'PAUSE' : 'PLAY' })}
           class="hover:text-black"
         />
 

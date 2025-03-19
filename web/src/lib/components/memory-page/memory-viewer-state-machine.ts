@@ -40,6 +40,7 @@ export const memoryViewerMachine = setup({
     hasFinishedPlayback: ({ context }) => context.elapsedMs === context.durationMs,
     isGalleryAndViewerClosed: ({ context }) => context.galleryAndViewerClosed,
     isGalleryOrViewerOpen: ({ context }) => !context.galleryAndViewerClosed,
+    isDifferentAsset: ({ context, event }) => context.currentMemoryAsset?.asset.id !== event.targetMemoryAsset.asset.id,
   },
 }).createMachine({
   context: {
@@ -132,6 +133,7 @@ export const memoryViewerMachine = setup({
         },
         NAVIGATE: {
           description: 'Used when jumping to a specific asset (either via URL navigation or by clicking)',
+          guard: 'isDifferentAsset',
           target: 'init_asset',
           actions: assign(({ event }) => ({
             currentMemoryAsset: event.targetMemoryAsset,

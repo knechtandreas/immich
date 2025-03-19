@@ -81,17 +81,6 @@
   );
   let videoElement: HTMLVideoElement | undefined = $state();
 
-  // TODO: Just for development. DELETE before MERGE
-  memoryViewerActor.subscribe((data) => {
-    const eventString = `${JSON.stringify(data.value)}`;
-    if (data.matches({ ready: 'playing' }) && data.context.elapsedMs < 1) {
-      // playing will be reentered many times (whenever we update the progress bar. Just showing the first one here)
-      console.log(`STATE MACHINE VALUE: ${eventString}`, data.context);
-    } else if (!eventString.includes('playing')) {
-      console.log(`STATE MACHINE VALUE: ${eventString}`, data.context);
-    }
-  });
-
   memoryViewerActor.on('navigate_to_asset', () => {
     const asset = current?.asset;
     if (asset) {

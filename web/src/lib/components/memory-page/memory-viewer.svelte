@@ -218,6 +218,18 @@
     const galleryAndViewerClosed = !$isViewing && !galleryInView;
     memoryViewerActor.send({ type: 'GALLERY_VIEWER_TOGGLED', galleryAndViewerClosed });
   });
+
+  $effect(() => {
+    if (assetInteraction.focussedAssetId) {
+      const containsFocussedAsset = current?.memory.assets.some(
+        (asset) => asset.id === assetInteraction.focussedAssetId,
+      );
+      if (!containsFocussedAsset) {
+        // if the current memory doesn't contain the focussed asset, reset focus. This may happen if we skip between memories.
+        assetInteraction.focussedAssetId = null;
+      }
+    }
+  });
 </script>
 
 <svelte:window
@@ -556,7 +568,12 @@
         use:resizeObserver={({ height, width }) => ((viewport.height = height), (viewport.width = width))}
         bind:this={memoryGallery}
       >
-        <GalleryViewer assets={current.memory.assets} {viewport} {assetInteraction} />
+        <GalleryViewer
+          disableAssetSelect={!galleryInView}
+          assets={current.memory.assets}
+          {viewport}
+          {assetInteraction}
+        />
       </div>
     </section>
   {/if}

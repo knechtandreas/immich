@@ -362,7 +362,7 @@
           </button>
         </div>
 
-        <!-- current MEMORY -->
+        <!-- CURRENT MEMORY -->
         <div
           class="main-view relative flex h-full w-[70vw] place-content-center place-items-center rounded-2xl bg-black"
         >
